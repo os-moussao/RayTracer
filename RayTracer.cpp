@@ -50,10 +50,17 @@ public:
 	Color color;
 	Sphere(const Vec &c, double r, const Color &color) : c(c), r(r), color(color) {}
 	bool inside(Vec point) const { return (point-c)*(point-c) <= sqr(r); };
+	bool intersects(Ray &ray) const {
+		double b = 2 * ((ray.o - c) * ray.d);
+		double c = (ray.o-c)*(ray.o-c) - sqr(r);
+		return sqr(b)- 4*c >= 0;
+	}
 };
 
 const int H = 1000;
 const int W = 1000;
+const double WindowZ = 100.0;
+
 Color white(0xff, 0xff, 0xff);
 Color black(0, 0, 0);
 Color red(0xff, 0, 0);
@@ -65,12 +72,15 @@ int main() {
 	ofstream ppm("pixel_map.ppm");
 	ppm << "P3\n" << W << "\n" << H << "\n" << "255\n";
 
+	Vec camera(0, 0, 0);
 	Color AmbientLight = white*0.2;
-	Sphere sph(Vec(0,-80,250), 200.0, red);
+	Sphere sph(Vec(0,-80,400), 100, red);
 	for (int y = 500; y > -500; y--) {
 		for (int x = -500; x < 500; x++) {
 			Color col = AmbientLight;
-			if (sph.inside(Vec(x, y, sph.c.z))) col = red;
+			// Ray ray(camera, Vec(x, y, WindowZ)-camera);
+			Ray ray(Vec(x, y, WindowZ), Vec(0, 0, 1));
+			if (sph.intersects(ray)) col = sph.color;
 			col.get(ppm);
 		}
 	}
