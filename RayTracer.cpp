@@ -27,7 +27,7 @@ public:
 	Vec unity() { return *this/mag(); }
 	Vec operator * (double f) { return Vec(x*f, y*f, z*f); };
 	double operator * (const Vec &v) { return x*v.x + y*v.y + z*v.z; } // dot
-	void normalize() { *this = unity(); }
+	Vec normalize() { return *this = unity(); }
 };
 
 class Ray {
@@ -42,7 +42,21 @@ public:
 	Color(const Vec &c) : c(c) {}
 	Color(double r, double g, double b) : c(r,g,b) {}
 	Color operator * (double opacity) { return Color(c*opacity); }
-	void get(ofstream &file) { file << c.x << " " << c.y << " " << c.z << "\n"; }
+	Color operator + (Color &col2) { return Color(c+col2.c); }
+	Color operator - (Color &col2) { return Color(c-col2.c); }
+	double  normalize(double &rgb) { return rgb = rgb < 0? 0: rgb > 0xff? 0xff: rgb; }
+	void get(ofstream &file) {
+		normalize(c.x); normalize(c.y); normalize(c.z);
+		file << c.x << " " << c.y << " " << c.z << "\n";
+	}
+};
+
+class Light {
+public:
+	Vec o;
+	Color color;
+	Light(): color(0, 0, 0) {}
+	Light(const Vec &o, double brightness = 0) : o(o), color(0, 0, 0) { color = Color(0xff,0xff,0xff) * brightness; }
 };
 
 class Sphere {
@@ -52,11 +66,15 @@ public:
 	Color color;
 	Sphere(const Vec &c, double r, const Color &color) : c(c), r(r), color(color) {}
 	bool inside(Vec point) const { return (point-c)*(point-c) <= sqr(r); };
-	bool intersects(Ray &ray) const {
+	bool intersects(Ray &ray, double &t) {
 		double B = 2 * ((ray.o - c) * ray.d);
 		double C = (ray.o-c)*(ray.o-c) - sqr(r);
 		double A = ray.d*ray.d;
-		return sqr(B) - 4*A*C >= 0;
+		double delta = sqr(B) - 4*A*C;
+		if (delta < 0) return false;
+		delta = sqrt(delta);
+		t = min((-B - delta) / (2 * A), (-B + delta) / (2 * A)); // the closest intersection
+		return true;
 	}
 };
 
@@ -74,15 +92,29 @@ int main() {
 	ofstream ppm("pixel_map.ppm");
 	ppm << "P3\n" << W << "\n" << H << "\n" << "255\n";
 
+	Light light(Vec(-W/4, H/4, 100), 1.5);
 	Vec camera(0, 0, 0);
 	Color AmbientLight = white*0.2;
 	Sphere sph(Vec(0,0,200), 150, red);
 	for (int y = H/2; y > -H/2; y--) {
 		for (int x = -W/2; x < W/2; x++) {
+			Vec pixel(x, y, WindowZ);
 			Color col = AmbientLight;
-			Ray ray(camera, Vec(x, y, WindowZ)-camera);
-			if (sph.intersects(ray)) col = sph.color;
-			col.get(ppm);
+			Ray ray(pixel, pixel-camera);
+
+			// check intersection
+			double t;
+			if (sph.intersects(ray, t)) {
+				Vec p = ray.o + ray.d*t; // point of intersection
+				Vec L = (light.o - p).normalize();
+				Vec N = (p - sph.c).normalize();
+				double _cos = L*N; // dot of unity vectors = cos
+				_cos -= 0.15;
+				col = light.color * _cos;
+				col = sph.color + col; 
+			}
+			if (_dist(Vec(x, y, light.o.z), light.o) <= 10) white.get(ppm);
+			else col.get(ppm);
 		}
 	}
 }

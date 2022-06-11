@@ -1,6 +1,5 @@
 all: raytracer
 	./raytracer
-	open pixel_map.ppm
 
 raytracer: RayTracer.cpp
 	clang++ $(CFLAGS) RayTracer.cpp -o $@
